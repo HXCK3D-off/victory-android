@@ -73,6 +73,17 @@ const FORBIDDEN_MAGIC: &[(&[u8], &str)] = &[
 
 pub fn run(root: &Path, staged: bool) -> Result<()> {
     let files = list_files(root, staged)?;
+    // An exception whose file is not in the tree is not an exception: it means
+    // the file was ignored or deleted, and the failure would only show up in a
+    // fresh clone. `--staged` sees a partial set, so only the whole tree is
+    // checked.
+    if !staged {
+        for (path, _) in EXCEPTIONS {
+            if !files.iter().any(|file| file == path) {
+                bail!("{path} is a documented exception, but it is not in the tree");
+            }
+        }
+    }
     let mut violations = Vec::new();
     for path in &files {
         if EXCEPTIONS.iter().any(|(p, _)| p == path) {

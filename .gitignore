@@ -55,6 +55,10 @@
 *.ktx2
 *.dxbc
 *.dxil
+# The exceptions (docs/asset-policy.md): our own triangle, compiled from the
+# `tri.hlsl` beside it, which the translator is tested against.
+!/crates/victory-dxil/shaders/tri_vs.dxil
+!/crates/victory-dxil/shaders/tri_ps.dxil
 *.cso
 *.spv
 *.wav
