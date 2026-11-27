@@ -1,0 +1,20 @@
+[package]
+name = "victory-dxil"
+description = "DXIL to SPIR-V on the CPU, through Valve's dxil-spirv converter."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+# The C++ converter, built through CMake for the target Cargo is building.
+dxil-spirv-sys = "0.1.0"
+
+[dev-dependencies]
+# Validates the modules this crate emits, from the other side of the fence.
+naga = { workspace = true, features = ["spv-in"] }
+
+[lints]
+workspace = true

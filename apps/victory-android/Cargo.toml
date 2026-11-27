@@ -1,0 +1,36 @@
+[package]
+name = "victory-android"
+description = "Android front end: native activity, Vulkan surface, and the host the portable crates start on."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# What Gradle packages as `lib/victory_android.so` for arm64-v8a.
+name = "victory_android"
+crate-type = ["cdylib"]
+
+[dependencies]
+victory-core.workspace = true
+victory-shader.workspace = true
+victory-dxil.workspace = true
+victory-gpu.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+[features]
+# Lets `VICTORY_LOG` raise the host to debug and trace, which is what
+# `scripts/build-android.ps1 -Diagnostics` builds.
+diagnostics = ["victory-core/diagnostics", "victory-shader/diagnostics"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity = { workspace = true, features = ["native-activity"] }
+android_logger = { workspace = true }
+ash = { workspace = true, features = ["linked"] }
+log = { workspace = true }
+naga = { workspace = true }
+
+[lints]
+workspace = true

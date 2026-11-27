@@ -1,0 +1,21 @@
+[alias]
+xtask = "run --quiet --package xtask --"
+
+# Android, arm64 only: the Snapdragon 8 Elite (Adreno 830) this port targets is
+# arm64-v8a. The linker and the C compiler are the NDK's `clang`, put on PATH by
+# `scripts/android/env.ps1` (or `.sh`); `--target` tells it which API to build
+# for, which is the same level the APK declares as `minSdk`.
+#
+# `clang` and not `aarch64-linux-android33-clang`: that wrapper is a shell
+# script, which Windows cannot execute, while the driver it calls is the same
+# binary on every host.
+[target.aarch64-linux-android]
+linker = "clang"
+rustflags = [
+  "-C", "link-arg=--target=aarch64-linux-android33",
+  # Android 15 runs on 16 KB memory pages, and Google Play requires 16 KB
+  # page-aligned shared libraries for new apps. The NDK defaults to this from
+  # r28; on r27 it has to be said out loud.
+  "-C", "link-arg=-Wl,-z,max-page-size=16384",
+  "-C", "link-arg=-Wl,-z,common-page-size=16384",
+]

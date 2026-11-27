@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The host needs Vulkan 1.1. A phone that reports no Vulkan device
+         cannot run this at all, so the store's filter is the honest one. -->
+    <uses-feature
+        android:name="android.hardware.vulkan.version"
+        android:version="0x00400000"
+        android:required="true" />
+
+    <application
+        android:allowBackup="false"
+        android:extractNativeLibs="false"
+        android:hasCode="false"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+
+        <!-- `NativeActivity` is the framework's own ANativeActivity: it loads
+             `libvictory_android.so` and calls the `android_main` symbol, so
+             the APK needs no Java or Kotlin of its own. -->
+        <activity
+            android:name="android.app.NativeActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|uiMode|smallestScreenSize|density|navigation"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="victory_android" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

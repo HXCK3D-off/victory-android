@@ -1,0 +1,31 @@
+[package]
+name = "victory-core"
+description = "Shared plumbing: configuration, paths, the asset-policy guard, logging."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+toml.workspace = true
+tracing-subscriber.workspace = true
+
+# logcat is the app's only visible log: an Android app's stderr goes nowhere.
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger.workspace = true
+log.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+# Lets `VICTORY_LOG` enable debug and trace output.
+diagnostics = []
+
+[lints]
+workspace = true

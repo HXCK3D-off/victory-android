@@ -1,0 +1,12 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+# Staged by the build script from target/aarch64-linux-android/release/.
+app/src/main/jniLibs/arm64-v8a/*.so
+*.apk
+*.aab
+*.jks
+*.keystore
