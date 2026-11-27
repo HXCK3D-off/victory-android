@@ -495,15 +495,9 @@ pub struct Texels {
     pub buffer: vk::Buffer,
     pub view: vk::BufferView,
     memory: vk::DeviceMemory,
-    len: u64,
 }
 
 impl Texels {
-    /// How many bytes the buffer holds.
-    pub fn len(&self) -> u64 {
-        self.len
-    }
-
     /// Uploads `bytes` as texels of `format`.
     ///
     /// # Safety
@@ -580,7 +574,6 @@ impl Texels {
             buffer,
             view,
             memory: allocated,
-            len,
         })
     }
 
