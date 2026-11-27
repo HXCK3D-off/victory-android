@@ -1116,6 +1116,31 @@ mod tests {
         }
     }
 
+    /// Whether the device sits on a software adapter. WARP reports depth bounds
+    /// support and then draws as if the bounds were wide open, so a test that
+    /// asserts the cull proves nothing on it (a CI runner has no GPU).
+    fn software(device: &ID3D12Device) -> bool {
+        use windows::Win32::Graphics::Dxgi::{
+            CreateDXGIFactory2, IDXGIAdapter1, IDXGIFactory4, DXGI_ADAPTER_FLAG_SOFTWARE,
+            DXGI_CREATE_FACTORY_FLAGS,
+        };
+        // SAFETY: plain DXGI queries; the device's LUID names its adapter.
+        unsafe {
+            let Ok(factory) = CreateDXGIFactory2::<IDXGIFactory4>(DXGI_CREATE_FACTORY_FLAGS(0))
+            else {
+                return false;
+            };
+            let Ok(adapter) = factory.EnumAdapterByLuid::<IDXGIAdapter1>(device.GetAdapterLuid())
+            else {
+                return false;
+            };
+            let Ok(desc) = adapter.GetDesc1() else {
+                return false;
+            };
+            desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0
+        }
+    }
+
     /// A mesh pipeline made once is loaded from the library the next time,
     /// not compiled again (a stream without a topology never loads).
     #[test]
@@ -1221,6 +1246,10 @@ mod tests {
         };
         if !host.depth_bounds() {
             eprintln!("no host depth bounds support; skipped");
+            return;
+        }
+        if software(&host.device) {
+            eprintln!("software adapter: depth bounds reported but not applied; skipped");
             return;
         }
         let Some(dxc) = dxc() else {
