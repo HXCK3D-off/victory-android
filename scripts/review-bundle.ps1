@@ -63,10 +63,16 @@ if (-not $Out) { $Out = Join-Path $root 'dist' }
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 
 # Two reviewers on the same commit get different bundles, on purpose.
-$mark = [System.BitConverter]::ToString(
-    [System.Security.Cryptography.SHA256]::HashData(
-        [System.Text.Encoding]::UTF8.GetBytes("$safe@$sha"))
-).Replace('-', '').Substring(0, 12).ToLowerInvariant()
+# `SHA256::Create` rather than `SHA256::HashData`: the static is .NET 5 and up,
+# and this has to run on the Windows PowerShell 5.1 that ships with Windows.
+$hasher = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $payload = [System.Text.Encoding]::UTF8.GetBytes("$safe@$sha")
+    $mark = [System.BitConverter]::ToString($hasher.ComputeHash($payload)).
+        Replace('-', '').Substring(0, 12).ToLowerInvariant()
+} finally {
+    $hasher.Dispose()
+}
 
 $name = "victory-android-review-$safe-$sha"
 $work = Join-Path $Out $name
