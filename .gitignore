@@ -95,6 +95,3 @@ Thumbs.db
 *.iml
 *.hprof
 /captures/
-
-# Review bundles (scripts/review-bundle.ps1) are for handing out, not committing.
-/dist/
