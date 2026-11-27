@@ -13,6 +13,15 @@ the game, nothing but what the shaders themselves compute.
 come from your own dump, on your own device, and only the SPIR-V the translator
 derives from them is kept anywhere.
 
+## Status: a proof of concept
+
+This is a proof of concept, published so the GPU-side work is readable and
+reusable. It is not a product and it is not on a schedule: it gets worked on
+when its author has time, which means there is no roadmap, no support, and no
+promise that a given bug gets fixed. Issues and pull requests are welcome, and
+they may sit unanswered for a long while. Read it as a worked example of
+running a console title's own shaders on a phone, not as a port that is coming.
+
 ## What runs on the phone
 
 Verified on a Galaxy S25 Ultra (`SM-S938W`), Android 17 / SDK 37, Adreno 830,
