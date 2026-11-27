@@ -118,7 +118,9 @@ Feedback worth having, in order of usefulness:
 4. Anything that would stop you building or running it (``README.md`` has the
    three commands).
 "@
-Set-Content -Path (Join-Path $work 'REVIEW-COPY.md') -Value $notice -Encoding utf8
+# `WriteAllText` writes UTF-8 with no BOM; PowerShell 5.1's `Set-Content -Encoding utf8`
+# does, and a BOM on SHA256SUMS breaks `sha256sum -c` on Linux.
+[System.IO.File]::WriteAllText((Join-Path $work 'REVIEW-COPY.md'), $notice)
 
 # Every file, hashed, so a modified copy is visible.
 $lines = Get-ChildItem -Path $work -Recurse -File |
@@ -129,7 +131,7 @@ $lines = Get-ChildItem -Path $work -Recurse -File |
         $hash = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLowerInvariant()
         "$hash  $relative"
     }
-Set-Content -Path (Join-Path $work 'SHA256SUMS') -Value $lines -Encoding utf8
+[System.IO.File]::WriteAllText((Join-Path $work 'SHA256SUMS'), (($lines -join "`n") + "`n"))
 
 $zip = Join-Path $Out "$name.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
