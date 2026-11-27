@@ -1116,29 +1116,43 @@ mod tests {
         }
     }
 
+    /// The adapter behind a device: its description, vendor and flags, or
+    /// `None` when DXGI will not name it.
+    fn adapter(device: &ID3D12Device) -> Option<(String, u32, u32)> {
+        use windows::Win32::Graphics::Dxgi::{
+            CreateDXGIFactory2, IDXGIAdapter1, IDXGIFactory4, DXGI_CREATE_FACTORY_FLAGS,
+        };
+        // SAFETY: plain DXGI queries; the device's LUID names its adapter.
+        unsafe {
+            let factory = CreateDXGIFactory2::<IDXGIFactory4>(DXGI_CREATE_FACTORY_FLAGS(0)).ok()?;
+            let adapter = factory
+                .EnumAdapterByLuid::<IDXGIAdapter1>(device.GetAdapterLuid())
+                .ok()?;
+            let desc = adapter.GetDesc1().ok()?;
+            let wide = &desc.Description;
+            let len = wide.iter().position(|&c| c == 0).unwrap_or(wide.len());
+            Some((
+                String::from_utf16_lossy(&wide[..len]),
+                desc.VendorId,
+                desc.Flags,
+            ))
+        }
+    }
+
     /// Whether the device sits on a software adapter. WARP reports depth bounds
     /// support and then draws as if the bounds were wide open, so a test that
     /// asserts the cull proves nothing on it (a CI runner has no GPU).
     fn software(device: &ID3D12Device) -> bool {
-        use windows::Win32::Graphics::Dxgi::{
-            CreateDXGIFactory2, IDXGIAdapter1, IDXGIFactory4, DXGI_ADAPTER_FLAG_SOFTWARE,
-            DXGI_CREATE_FACTORY_FLAGS,
+        /// WARP and the Basic Render Driver are both Microsoft's.
+        const MICROSOFT: u32 = 0x1414;
+        use windows::Win32::Graphics::Dxgi::DXGI_ADAPTER_FLAG_SOFTWARE;
+        let Some((description, vendor, flags)) = adapter(device) else {
+            return false;
         };
-        // SAFETY: plain DXGI queries; the device's LUID names its adapter.
-        unsafe {
-            let Ok(factory) = CreateDXGIFactory2::<IDXGIFactory4>(DXGI_CREATE_FACTORY_FLAGS(0))
-            else {
-                return false;
-            };
-            let Ok(adapter) = factory.EnumAdapterByLuid::<IDXGIAdapter1>(device.GetAdapterLuid())
-            else {
-                return false;
-            };
-            let Ok(desc) = adapter.GetDesc1() else {
-                return false;
-            };
-            desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0
-        }
+        flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0
+            || vendor == MICROSOFT
+            || description.contains("WARP")
+            || description.contains("Basic Render")
     }
 
     /// A mesh pipeline made once is loaded from the library the next time,
@@ -1248,6 +1262,11 @@ mod tests {
             eprintln!("no host depth bounds support; skipped");
             return;
         }
+        eprintln!(
+            "host adapter {:?} software={}",
+            adapter(&host.device),
+            software(&host.device)
+        );
         if software(&host.device) {
             eprintln!("software adapter: depth bounds reported but not applied; skipped");
             return;
