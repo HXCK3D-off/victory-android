@@ -1,28 +1,25 @@
-# VIctory on Android
+# A GDK compatibility layer for Android
 
-An Android host and a Vulkan backend for [VIctory](https://github.com/Marvisak/VIctory),
-the compatibility layer that runs an Xbox Series title from files you supply.
-This fork takes the GPU side to an ARM64 phone: the title's own shaders,
-translated on the device, drawn by a Vulkan backend written for it.
+An Android host, a Vulkan backend, and a high-level emulation layer for titles
+built against the Microsoft GDK for Xbox, grown out of the Android fork of
+[VIctory](https://github.com/Marvisak/VIctory). Three pieces, in three states:
+the GPU half draws the title's own shaders on the phone, the CPU half now
+executes the title's own x86-64 code on the phone, and the GDK surface between
+them — the calls the title makes into its platform — is where most of the
+remaining work is.
 
-It does **not** play the title yet. Its shaders run on the phone; its code does
-not run anywhere on ARM64, and until that exists there is no menu, no frame of
-the game, nothing but what the shaders themselves compute.
+It does **not** reach a frame of the title yet. The CPU half runs to roughly
+37,000 guest calls across sixteen guest threads and stops in the job system's own
+initialisation; the GPU half translates and draws the title's shaders but is not
+yet driven by the title's command stream. What they add up to so far is a clear
+colour the title's own pixel stages compute, on a swap chain this host owns —
+not a menu.
 
 **This repository contains no game files, code or assets.** Shader containers
 come from your own dump, on your own device, and only the SPIR-V the translator
 derives from them is kept anywhere.
 
-## Status: a proof of concept
-
-This is a proof of concept, published so the GPU-side work is readable and
-reusable. It is not a product and it is not on a schedule: it gets worked on
-when its author has time, which means there is no roadmap, no support, and no
-promise that a given bug gets fixed. Issues and pull requests are welcome, and
-they may sit unanswered for a long while. Read it as a worked example of
-running a console title's own shaders on a phone, not as a port that is coming.
-
-## What runs on the phone
+## The GPU half: the title's shaders, on the phone
 
 Verified on a Galaxy S25 Ultra (`SM-S938W`), Android 17 / SDK 37, Adreno 830,
 Vulkan 1.3.284, driver 512.800.64, 3120×1440:
@@ -43,6 +40,64 @@ no vertex attributes at all: it reads `gl_VertexIndex`, `gl_InstanceIndex` and
 as a uniform texel buffer. The backend can describe and bind that; wiring a
 synthetic vertex buffer into a pipeline and drawing it with the title's own
 pixel stage is the next step, not a missing capability.
+
+## The CPU half: FEXCore in process
+
+The title is x86-64 machine code, and an ARM64 phone cannot execute it. The
+execution side is [FEX-Emu](https://github.com/FEX-Emu/FEX)'s JIT (MIT), built
+without its Linux frontend and run in this process, with the console's platform
+supplied by this project instead of by a kernel. It runs today on the same
+phone: the PE maps at its preferred base, its imports bind, and the guest makes
+about 37,000 calls into the emulation layer before it stops.
+
+| | |
+| --- | --- |
+| x86-64 → ARM64 | FEXCore JIT in process, x86-64 mode, multiblock, 4 KiB pages |
+| Guest threads | sixteen created, fifteen running: per-thread TEB and TLS copy, stack, argument page, call/return stack, per-thread signal attribution |
+| Windows ABI | import stubs and trampolines, Win64 argument and shadow-space rules, thread create/resume/exit |
+| Calls answered | ~37,000: the UCRT (formatting core, the string family including the wide one, heap, time), threads and sync primitives, the Win32 file APIs, DirectStorage's factory and `OpenFile` with per-file objects, the `GameInput` and runtime interface objects |
+| Where it stops | a null virtual-function slot in the job system's pool initialiser, after the pool allocates its per-worker entries |
+| Not started | `D3D12.X` beyond one configuration call, audio, archive mounts at scale, networking, guest SEH unwinding |
+
+Two things are worth stating plainly because they are easy to misread. The
+interface layouts — which slot of which object, which field of which structure —
+are derived from the title's own call sites, by reading the code that calls
+them; no SDK headers, binaries or documentation are required, used or
+distributed. And the threads are genuinely concurrent — it took a real condition
+variable to get fifteen of them past a critical-section pile-up — which is why
+the current wall is a dispatch question rather than a missing function: the pool
+builds an entry per worker, and one virtual slot it calls through was never
+filled.
+
+## Progress, by subsystem
+
+Percentages toward the first frame, which is not the same thing as a percentage
+of a playable game — the distance from a frame to playable is the part of this
+that cannot be estimated yet.
+
+| Subsystem | Where it is |
+| --- | --- |
+| x86-64 → ARM64 execution | **60%** — JIT in process, title executes; instruction coverage and performance unmeasured |
+| Guest ↔ host ABI bridge | **70%** — stubs, trampolines, TLS, threads, shadow space, fault attribution; no SEH unwinding |
+| GDK / Win32 emulation on Android | **25%** — the surface listed above; `D3D12.X`, audio, mounts and networking at zero |
+| Vulkan backend | **45%** standalone, **~10%** for this project — nothing feeds it yet |
+| Loader, files, input, audio | **30%** — PE mapping on ARM64 and file I/O through the content source work; input and audio are zero |
+| Shader translation (DXIL → SPIR-V) | **0%** of the pipeline path — the translator works, feeding it the title's command stream does not exist |
+
+Overall: **~5% toward the first frame.** The number is low because the two rows
+this document used to call the gate — execution and the bridge — are the part
+that got done, and the graphics row turned out to be roughly twice the size it
+looked from outside. A Vulkan renderer plus an unlisted translation layer is not
+one subsystem.
+
+## Status: a proof of concept
+
+This is a proof of concept, published so the GPU-side work is readable and
+reusable. It is not a product and it is not on a schedule: it gets worked on
+when its author has time, which means there is no roadmap, no support, and no
+promise that a given bug gets fixed. Issues and pull requests are welcome, and
+they may sit unanswered for a long while. Read it as a worked example of
+running a console title's own shaders on a phone, not as a port that is coming.
 
 ## Requirements
 
@@ -190,16 +245,19 @@ In the order it is being built:
 4. **Command lists**: `list.rs`'s put-pointer protocol landing on
    `VkCommandBuffer`, which is when the backend stops drawing demo passes and
    starts executing recorded ones.
-5. **The title's code.** An ARM64 phone cannot execute the x86-64 the loader
-   maps, so this is the gate: FEXCore (FEX-Emu's JIT, MIT) built without its
-   Linux frontend, with `victory-hle` supplying the console's kernel through
-   host trampolines, guest address space, TLS and exception handling.
-   [docs/android.md](docs/android.md) works through what that takes. On a
-   16 KiB-page device it cannot work at all, because FEXCore needs 4 KiB pages.
+5. **The GDK surface the title calls into.** The code runs (see above), so this
+   is no longer "get it executing" but "answer what it asks": `D3D12.X` device,
+   queue, heap and pipeline calls routed into the Vulkan backend; shader
+   programs fed from the title's own command stream; archives mounted at scale;
+   audio. [docs/android.md](docs/android.md) works through what that takes. On a
+   16 KiB-page device none of it can run at all, because FEXCore needs 4 KiB
+   pages.
 
-Everything up to 4 is the GPU half and is where the work has been. 5 is the
-half that decides whether a menu ever appears, and no amount of finished
-backend gets there without it.
+Everything up to 4 is the GPU half and is where this fork's work started. 5 was
+the gate and the gate has moved rather than opened: the title executes, and what
+stands between that and a frame is the platform surface it executes against,
+with `D3D12.X` — its device model, its memory model, and its shaders — the
+largest single piece.
 
 ## Layout
 
@@ -217,6 +275,24 @@ docs/android.md           what is built, what each missing layer takes, and why
 scripts/android/          toolchain discovery for the NDK/SDK/JDK builds
 ```
 
+## Scope, and what this is not
+
+* It runs titles built against the Microsoft GDK for Xbox, from files **you**
+  supply. No game data, code, assets or keys are included, referenced or
+  fetched, and none are needed to build or run anything here.
+* No SDK material is used or distributed. Interface layouts, structure fields
+  and enum values are established by reading the title's own calls at its
+  import and virtual-call boundaries, and are written down as our own
+  understanding of the contract — not copied from documentation or headers.
+* There is no decryption here, and no dumping tooling: the layer expects files
+  that are already readable on your device, and offers no path to making them
+  so.
+* It is not affiliated with, endorsed by, or connected to the platform vendor,
+  and it is not a way to obtain anything you do not already own.
+
+Contributions that break those four lines are not merged, and `cargo xtask
+policy` is the machine that enforces the first one.
+
 ## Asset policy
 
 The repository holds only source. `cargo xtask policy` is an allowlist — file
@@ -233,4 +309,5 @@ of [VIctory](https://github.com/Marvisak/VIctory) by way of
 [VIctory-7900XTX](https://github.com/avatarmanz/VIctory-7900XTX); the fork this
 tree was taken from is no longer published. The Android host, the Vulkan
 backend and the DXIL translation path are what this fork adds. Not affiliated
-with or endorsed by the title's developer or publisher; bring your own dump.
+with or endorsed by the platform vendor or any title's developer or publisher;
+bring your own files.

@@ -95,3 +95,10 @@ Thumbs.db
 *.iml
 *.hprof
 /captures/
+
+# Local harness output: run logs, streamed images, scratch trees.
+# Logs from a device run carry asset paths and build identifiers, so they are
+# never committed; keep them outside the tree, or here.
+*.log
+/.scratch/
+/probe/
